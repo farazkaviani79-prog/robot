@@ -1,0 +1,1 @@
+{ "extends": "./tsconfig.json", "compilerOptions": { "noEmit": true, "types": ["node"] }, "include": ["src/common/**/*", "src/domain/**/*", "src/modules/bale/*.ts", "test/**/*"] }

@@ -1,0 +1,796 @@
+// آنچه در این فایل می‌بینید مرجع مدل داده است. قیود CHECK، RLS و Triggerها در migration دوم (rls_and_checks) تعریف شده‌اند.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  @@map("user_status")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+  @@map("tenant_status")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  STAFF
+  @@map("role")
+}
+
+enum Channel {
+  BALE
+  TELEGRAM
+  @@map("channel")
+}
+
+enum BotMode {
+  CENTRAL
+  DEDICATED
+  @@map("bot_mode")
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+  ERROR
+  @@map("connection_status")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+  @@map("product_status")
+}
+
+enum MovementType {
+  RECEIPT
+  ADJUSTMENT
+  RESERVE
+  RELEASE
+  SALE
+  RETURN
+  @@map("movement_type")
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+  @@map("cart_status")
+}
+
+enum OrderStatus {
+  PENDING
+  AWAITING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  @@map("order_status")
+}
+
+enum ReservationStatus {
+  ACTIVE
+  COMMITTED
+  RELEASED
+  EXPIRED
+  @@map("reservation_status")
+}
+
+enum PaymentProvider {
+  MOCK
+  BALE
+  @@map("payment_provider")
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  @@map("payment_status")
+}
+
+enum RefundStatus {
+  REQUESTED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  @@map("refund_status")
+}
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+  @@map("billing_period")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  @@map("subscription_status")
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  VOID
+  FAILED
+  @@map("invoice_status")
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  @@map("webhook_status")
+}
+
+enum OutboundStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  @@map("outbound_status")
+}
+
+enum ActorType {
+  USER
+  CUSTOMER
+  SYSTEM
+  PLATFORM_ADMIN
+  @@map("actor_type")
+}
+
+model User {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  email String? @unique @map("email")
+  phone String? @unique @map("phone")
+  passwordHash String @map("password_hash")
+  displayName String? @map("display_name")
+  isPlatformAdmin Boolean @default(false) @map("is_platform_admin")
+  status UserStatus @default(ACTIVE) @map("status")
+  failedLoginCount Int @default(0) @map("failed_login_count")
+  lockedUntil DateTime? @map("locked_until")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  refreshSessions RefreshSession[] 
+  memberships Membership[] 
+  @@map("users")
+}
+
+model Tenant {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  name String @map("name")
+  slug String @unique @map("slug")
+  status TenantStatus @default(ACTIVE) @map("status")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  memberships Membership[]
+  stores Store[]
+  connections ChannelConnection[]
+  categories Category[]
+  products Product[]
+  variants ProductVariant[]
+  media ProductMedia[]
+  locations InventoryLocation[]
+  balances InventoryBalance[]
+  movements InventoryMovement[]
+  customers Customer[]
+  identities CustomerIdentity[]
+  addresses CustomerAddress[]
+  carts Cart[]
+  items CartItem[]
+  orders Order[]
+  items OrderItem[]
+  statusHistory OrderStatusHistory[]
+  reservations StockReservation[]
+  payments Payment[]
+  events PaymentEvent[]
+  refunds Refund[]
+  subscriptions Subscription[]
+  invoices SubscriptionInvoice[]
+  webhookEvents WebhookEvent[]
+  outboundMessages OutboundMessage[]
+  @@map("tenants")
+}
+
+model RefreshSession {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId String @map("user_id")
+  tokenHash String @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String? @map("user_agent")
+  ip String? @map("ip")
+  createdAt DateTime @default(now()) @map("created_at")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@map("refresh_sessions")
+}
+
+model Plan {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  code String @unique @map("code")
+  name String @map("name")
+  priceAmount BigInt @map("price_amount")
+  billingPeriod BillingPeriod @default(MONTHLY) @map("billing_period")
+  limits Json @map("limits")
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  subscriptions Subscription[] 
+  @@map("plans")
+}
+
+model Membership {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  userId String @map("user_id")
+  role Role @default(STAFF) @map("role")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+model Store {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  name String @map("name")
+  slug String @map("slug")
+  description String? @map("description")
+  currency String @default("IRR") @map("currency")
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connections ChannelConnection[] 
+  categories Category[] 
+  products Product[] 
+  locations InventoryLocation[] 
+  carts Cart[] 
+  orders Order[] 
+  @@unique([tenantId, id])
+  @@unique([tenantId, slug])
+  @@map("stores")
+}
+
+model ChannelConnection {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  storeId String @map("store_id")
+  channel Channel @map("channel")
+  mode BotMode @default(DEDICATED) @map("mode")
+  botUsername String? @map("bot_username")
+  botTokenEnc String? @map("bot_token_enc")
+  webhookKey String @unique @map("webhook_key")
+  webhookSecretEnc String? @map("webhook_secret_enc")
+  status ConnectionStatus @default(PENDING) @map("status")
+  lastError String? @map("last_error")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Cascade)
+  webhookEvents WebhookEvent[] 
+  outboundMessages OutboundMessage[] 
+  @@unique([tenantId, id])
+  @@unique([tenantId, storeId, channel])
+  @@map("channel_connections")
+}
+
+model Category {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  storeId String @map("store_id")
+  parentId String? @map("parent_id")
+  name String @map("name")
+  slug String @map("slug")
+  sortOrder Int @default(0) @map("sort_order")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Cascade)
+  parent Category? @relation("CategoryTree", fields: [tenantId, parentId], references: [tenantId, id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  products Product[] 
+  @@unique([tenantId, id])
+  @@unique([tenantId, storeId, slug])
+  @@index([tenantId, parentId])
+  @@map("categories")
+}
+
+model Product {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  storeId String @map("store_id")
+  categoryId String? @map("category_id")
+  name String @map("name")
+  description String? @map("description")
+  status ProductStatus @default(DRAFT) @map("status")
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Cascade)
+  category Category? @relation(fields: [tenantId, categoryId], references: [tenantId, id], onDelete: Restrict)
+  variants ProductVariant[] 
+  media ProductMedia[] 
+  @@unique([tenantId, id])
+  @@index([tenantId, storeId, status])
+  @@index([tenantId, storeId])
+  @@index([tenantId, categoryId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  productId String @map("product_id")
+  sku String @map("sku")
+  title String @default("پیش‌فرض") @map("title")
+  options Json @default("{}") @map("options")
+  priceAmount BigInt @map("price_amount")
+  compareAtAmount BigInt? @map("compare_at_amount")
+  trackInventory Boolean @default(true) @map("track_inventory")
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Cascade)
+  media ProductMedia[] 
+  balances InventoryBalance[] 
+  movements InventoryMovement[] 
+  items CartItem[] 
+  items OrderItem[] 
+  reservations StockReservation[] 
+  @@unique([tenantId, id])
+  @@unique([tenantId, sku])
+  @@index([tenantId, productId])
+  @@map("product_variants")
+}
+
+model ProductMedia {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  productId String @map("product_id")
+  variantId String? @map("variant_id")
+  storageKey String @map("storage_key")
+  url String @map("url")
+  altText String? @map("alt_text")
+  sortOrder Int @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [tenantId, variantId], references: [tenantId, id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@index([tenantId, productId])
+  @@index([tenantId, variantId])
+  @@map("product_media")
+}
+
+model InventoryLocation {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  storeId String @map("store_id")
+  name String @map("name")
+  isDefault Boolean @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Cascade)
+  balances InventoryBalance[] 
+  movements InventoryMovement[] 
+  reservations StockReservation[] 
+  @@unique([tenantId, id])
+  @@unique([tenantId, storeId, name])
+  @@map("inventory_locations")
+}
+
+model InventoryBalance {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  variantId String @map("variant_id")
+  locationId String @map("location_id")
+  onHand Int @default(0) @map("on_hand")
+  reserved Int @default(0) @map("reserved")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [tenantId, variantId], references: [tenantId, id], onDelete: Cascade)
+  location InventoryLocation @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@unique([tenantId, variantId, locationId])
+  @@index([tenantId, locationId])
+  @@map("inventory_balances")
+}
+
+model InventoryMovement {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  variantId String @map("variant_id")
+  locationId String @map("location_id")
+  type MovementType @map("type")
+  onHandDelta Int @default(0) @map("on_hand_delta")
+  reservedDelta Int @default(0) @map("reserved_delta")
+  reason String? @map("reason")
+  refType String? @map("ref_type")
+  refId String? @map("ref_id")
+  actorUserId String? @map("actor_user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [tenantId, variantId], references: [tenantId, id], onDelete: Cascade)
+  location InventoryLocation @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@index([tenantId, variantId, createdAt])
+  @@index([tenantId, refType, refId])
+  @@index([tenantId, variantId])
+  @@index([tenantId, locationId])
+  @@map("inventory_movements")
+}
+
+model Customer {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  fullName String? @map("full_name")
+  phone String? @map("phone")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  identities CustomerIdentity[] 
+  addresses CustomerAddress[] 
+  carts Cart[] 
+  orders Order[] 
+  @@unique([tenantId, id])
+  @@index([tenantId, phone])
+  @@map("customers")
+}
+
+model CustomerIdentity {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  customerId String @map("customer_id")
+  channel Channel @map("channel")
+  externalId String @map("external_id")
+  username String? @map("username")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@unique([tenantId, channel, externalId])
+  @@index([tenantId, customerId])
+  @@map("customer_identities")
+}
+
+model CustomerAddress {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  customerId String @map("customer_id")
+  title String? @map("title")
+  recipientName String @map("recipient_name")
+  phone String @map("phone")
+  province String @map("province")
+  city String @map("city")
+  addressLine String @map("address_line")
+  postalCode String? @map("postal_code")
+  isDefault Boolean @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@index([tenantId, customerId])
+  @@map("customer_addresses")
+}
+
+model Cart {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  storeId String @map("store_id")
+  customerId String @map("customer_id")
+  status CartStatus @default(ACTIVE) @map("status")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Cascade)
+  customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Cascade)
+  items CartItem[] 
+  @@unique([tenantId, id])
+  @@index([tenantId, storeId, customerId, status])
+  @@index([tenantId, storeId])
+  @@index([tenantId, customerId])
+  @@map("carts")
+}
+
+model CartItem {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  cartId String @map("cart_id")
+  variantId String @map("variant_id")
+  quantity Int @map("quantity")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cart Cart @relation(fields: [tenantId, cartId], references: [tenantId, id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [tenantId, variantId], references: [tenantId, id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@unique([tenantId, cartId, variantId])
+  @@index([tenantId, variantId])
+  @@map("cart_items")
+}
+
+model Order {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  storeId String @map("store_id")
+  customerId String @map("customer_id")
+  orderNumber String @map("order_number")
+  status OrderStatus @default(PENDING) @map("status")
+  currency String @default("IRR") @map("currency")
+  subtotalAmount BigInt @map("subtotal_amount")
+  discountAmount BigInt @default(0) @map("discount_amount")
+  shippingAmount BigInt @default(0) @map("shipping_amount")
+  totalAmount BigInt @map("total_amount")
+  couponCode String? @map("coupon_code")
+  shippingAddress Json? @map("shipping_address")
+  customerSnapshot Json @map("customer_snapshot")
+  note String? @map("note")
+  idempotencyKey String? @map("idempotency_key")
+  placedAt DateTime @default(now()) @map("placed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [tenantId, storeId], references: [tenantId, id], onDelete: Restrict)
+  customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Restrict)
+  items OrderItem[] 
+  statusHistory OrderStatusHistory[] 
+  reservations StockReservation[] 
+  payments Payment[] 
+  refunds Refund[] 
+  @@unique([tenantId, id])
+  @@unique([tenantId, storeId, orderNumber])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, customerId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  orderId String @map("order_id")
+  variantId String @map("variant_id")
+  productId String @map("product_id")
+  productName String @map("product_name")
+  variantTitle String @map("variant_title")
+  sku String @map("sku")
+  quantity Int @map("quantity")
+  unitAmount BigInt @map("unit_amount")
+  lineAmount BigInt @map("line_amount")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [tenantId, variantId], references: [tenantId, id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@index([tenantId, orderId])
+  @@index([tenantId, variantId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  orderId String @map("order_id")
+  fromStatus OrderStatus? @map("from_status")
+  toStatus OrderStatus @map("to_status")
+  actorType ActorType @default(SYSTEM) @map("actor_type")
+  actorId String? @map("actor_id")
+  note String? @map("note")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@index([tenantId, orderId])
+  @@map("order_status_history")
+}
+
+model StockReservation {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  orderId String @map("order_id")
+  variantId String @map("variant_id")
+  locationId String @map("location_id")
+  quantity Int @map("quantity")
+  status ReservationStatus @default(ACTIVE) @map("status")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [tenantId, variantId], references: [tenantId, id], onDelete: Restrict)
+  location InventoryLocation @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@index([status, expiresAt])
+  @@index([tenantId, orderId])
+  @@index([tenantId, variantId])
+  @@index([tenantId, locationId])
+  @@map("stock_reservations")
+}
+
+model Payment {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  orderId String @map("order_id")
+  provider PaymentProvider @map("provider")
+  status PaymentStatus @default(INITIATED) @map("status")
+  amount BigInt @map("amount")
+  currency String @default("IRR") @map("currency")
+  invoicePayload String @map("invoice_payload")
+  providerRef String? @map("provider_ref")
+  verifiedAt DateTime? @map("verified_at")
+  failureReason String? @map("failure_reason")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  events PaymentEvent[] 
+  refunds Refund[] 
+  @@unique([tenantId, id])
+  @@unique([tenantId, invoicePayload])
+  @@unique([provider, providerRef])
+  @@index([tenantId, orderId])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  paymentId String @map("payment_id")
+  type String @map("type")
+  dedupeKey String @map("dedupe_key")
+  payload Json @map("payload")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [tenantId, paymentId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, paymentId])
+  @@map("payment_events")
+}
+
+model Refund {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  paymentId String @map("payment_id")
+  orderId String @map("order_id")
+  amount BigInt @map("amount")
+  status RefundStatus @default(REQUESTED) @map("status")
+  reason String? @map("reason")
+  providerRef String? @map("provider_ref")
+  createdBy String? @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [tenantId, paymentId], references: [tenantId, id], onDelete: Restrict)
+  order Order @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  @@unique([tenantId, id])
+  @@index([tenantId, paymentId])
+  @@index([tenantId, orderId])
+  @@map("refunds")
+}
+
+model Subscription {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  planId String @map("plan_id")
+  status SubscriptionStatus @default(TRIALING) @map("status")
+  currentPeriodStart DateTime @map("current_period_start")
+  currentPeriodEnd DateTime @map("current_period_end")
+  cancelAtPeriodEnd Boolean @default(false) @map("cancel_at_period_end")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices SubscriptionInvoice[] 
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([planId])
+  @@map("subscriptions")
+}
+
+model SubscriptionInvoice {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  subscriptionId String @map("subscription_id")
+  amount BigInt @map("amount")
+  status InvoiceStatus @default(OPEN) @map("status")
+  periodStart DateTime @map("period_start")
+  periodEnd DateTime @map("period_end")
+  paidAt DateTime? @map("paid_at")
+  providerRef String? @map("provider_ref")
+  createdAt DateTime @default(now()) @map("created_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [tenantId, subscriptionId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@index([tenantId, subscriptionId])
+  @@map("subscription_invoices")
+}
+
+model WebhookEvent {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  connectionId String @map("connection_id")
+  channel Channel @map("channel")
+  externalEventId String @map("external_event_id")
+  payload Json @map("payload")
+  status WebhookStatus @default(RECEIVED) @map("status")
+  attempts Int @default(0) @map("attempts")
+  error String? @map("error")
+  receivedAt DateTime @default(now()) @map("received_at")
+  processedAt DateTime? @map("processed_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection ChannelConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@unique([tenantId, connectionId, externalEventId])
+  @@index([status, receivedAt])
+  @@map("webhook_events")
+}
+
+model OutboundMessage {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String @map("tenant_id")
+  connectionId String @map("connection_id")
+  chatId String @map("chat_id")
+  kind String @map("kind")
+  payload Json @map("payload")
+  status OutboundStatus @default(QUEUED) @map("status")
+  attempts Int @default(0) @map("attempts")
+  error String? @map("error")
+  providerMessageId String? @map("provider_message_id")
+  idempotencyKey String @map("idempotency_key")
+  createdAt DateTime @default(now()) @map("created_at")
+  sentAt DateTime? @map("sent_at")
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection ChannelConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Cascade)
+  @@unique([tenantId, id])
+  @@unique([tenantId, idempotencyKey])
+  @@index([status, createdAt])
+  @@index([tenantId, connectionId])
+  @@map("outbound_messages")
+}
+
+model AuditLog {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+  tenantId String? @map("tenant_id")
+  actorUserId String? @map("actor_user_id")
+  actorType ActorType @default(USER) @map("actor_type")
+  action String @map("action")
+  entityType String? @map("entity_type")
+  entityId String? @map("entity_id")
+  metadata Json @default("{}") @map("metadata")
+  ip String? @map("ip")
+  userAgent String? @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([tenantId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,22 @@
+# زیرساخت توسعه. رمز Postgres از .env خوانده می‌شود؛ مقدار پیش‌فرض فقط برای توسعه محلی است.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: botshop
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:-CHANGE_ME_owner}
+      POSTGRES_DB: botshop
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - botshop_pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U botshop"], interval: 5s, retries: 10 }
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["botshop_redisdata:/data"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 10 }
+volumes:
+  botshop_pgdata:
+  botshop_redisdata:

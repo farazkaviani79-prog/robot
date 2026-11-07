@@ -1,0 +1,3 @@
+export const Q_INBOUND = 'bale-inbound';   // پردازش Updateهای دریافتی
+export const Q_OUTBOUND = 'bale-outbound'; // ارسال پیام
+export const Q_MAINT = 'maintenance';      // انقضای رزرو و ...

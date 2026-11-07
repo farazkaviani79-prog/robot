@@ -1,0 +1,25 @@
+{
+  "name": "botshop",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n API,WEB \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --workspace @botshop/api run start:dev",
+    "dev:web": "npm --workspace @botshop/web run dev",
+    "db:generate": "npm --workspace @botshop/api run db:generate",
+    "db:push": "npm --workspace @botshop/api run db:push",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "db:migrate": "npm --workspace @botshop/api run db:migrate",
+    "db:seed": "npm --workspace @botshop/api run db:seed",
+    "test": "npm --workspace @botshop/api run test:unit",
+    "test:db": "bash scripts/db-verify.sh",
+    "build": "npm --workspace @botshop/api run build && npm --workspace @botshop/web run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
